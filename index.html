@@ -416,7 +416,8 @@
         let currentRotation = angles[index] * (180 / Math.PI);
         if (currentRotation > 180) currentRotation -= 360;
         rotatingGroup.setAttribute('transform', `rotate(${currentRotation},50,50)`);
-        angleLabel.textContent = `${(currentRotation / 180).toFixed(3)}π`;
+        angleLabel.textContent = `\\(${(currentRotation / 180).toFixed(3)}\\pi\\)`;
+        MathJax.typeset([angleLabel]);
       });
     }
 
@@ -466,7 +467,6 @@
         </div>
       `;
     }
-    MathJax.typeset();
 
     // Attach knob event listeners
     document.querySelectorAll('.knob-wrapper').forEach((knobWrapper, index) => {
@@ -503,7 +503,7 @@
         if (currentRotation < -180) currentRotation += 360;
         rotatingGroup.setAttribute('transform', `rotate(${currentRotation},50,50)`);
         angleLabel.textContent = `\\(${(currentRotation / 180).toFixed(3)}\\pi\\)`;
-        MathJax.typeset();
+        MathJax.typeset([angleLabel]);
         angles[index] = currentRotation * (Math.PI / 180);
         updateFromAngles();
       }
@@ -515,6 +515,8 @@
       document.addEventListener('mouseup', stopDrag);
       document.addEventListener('touchend', stopDrag);
     });
+    
+    MathJax.typeset();
   </script>
 </body>
 </html>
