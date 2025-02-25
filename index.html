@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>QSVT 101</title>
+  <!-- D3.js -->
+  <script src="./d3.v7.min.js"></script>
+  <!-- MathJax for LaTeX rendering -->
+  <script src="./tex-mml-chtml.js"></script>
+  <script src="./Math.min.js"></script>
+  <style>
+    /* Global style */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #fff;
+      color: #000;
+      font-family: "Book Antiqua", serif;
+      overflow: auto;
+    }
+    h1 {
+      text-align: center;
+      margin: 20px 0 10px;
+      font-size: 36px;
+    }
+    svg { display: block; }
+    .axis path, .axis line { stroke: #000; shape-rendering: crispEdges; }
+    .axis .tick line { stroke: #000; stroke-width: 2; }
+    .axis .tick text { font-size: 24px; user-select: none; }
+    .grid line {
+      stroke: #ddd;
+      stroke-opacity: 0.7;
+      shape-rendering: crispEdges;
+    }
+    .axis-zero { stroke: #000; stroke-width: 2; }
+    .draggable {
+      fill: red;
+      stroke: #000;
+      stroke-width: 1px;
+      cursor: pointer;
+    }
+    .origin { fill: #000; }
+    .label { font-size: 36px; fill: #000; user-select: none; }
+    .circuit-iframe {
+      margin: 0;
+      padding: 0;
+    }
+    .circuit-iframe iframe {
+      position: relative;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: 0;
+      scale: 1.2;
+      pointer-events: none;
+      margin-top: 10px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      user-select: none;
+    }
+    /* Knob styles */
+    .knob-container {
+      display: flex;
+      position: relative;
+      gap: 50px;
+      justify-content: center;
+      align-items: center;
+    }
+    .knob-wrapper {
+      position: relative;
+      width: 100px;
+      height: 150px;
+    }
+    .knob {
+      width: 100px;
+      height: 100px;
+      cursor: grab;
+      touch-action: none;
+    }
+    .angle-label {
+      position: absolute;
+      top: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #000;
+      font-size: 18px;
+      font-family: Arial, sans-serif;
+    }
+    footer {
+      text-align: center;
+      font-size: 12px;
+      padding: 5px 0;
+      background: #f9f9f9;
+      border-top: 1px solid #ccc;
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+    }
+    footer a {
+      color: #000;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>QSVT 101</h1>
+  <!-- D3 Plot -->
+  <svg></svg>
+
+  <!-- Circuit iframe -->
+  <div class="circuit-iframe">
+    <iframe id="circuitFrame" src="./circuit.html"></iframe>
+  </div>
+
+  <!-- Knobs container (the five knobs will be generated dynamically) -->
+  <div class="knob-container" id="knob-container"></div>
+
+  <div id="error-message" style="text-align: center; color: red; font-size: 16px; display: none;">
+    Polynomial condition not satisfied, no angles can be found.
+  </div>
+
+  <footer>
+    &copy;2025 Xi Lu. Released under MIT license.
+    View on <a href="https://github.com/helloluxi/qsp101" target="_blank">Github</a>
+  </footer>
+
+  <script>
+    /***** SVG Setup *****/
+    const margin = { top: 20, right: 20, bottom: 30, left: 40 };
+    let width, height;
+    const domain = [-1, 1];
+    const clampDomain = [-1, 1];
+    const svg = d3.select("svg");
+    let xScale = d3.scaleLinear().domain(domain);
+    let yScale = d3.scaleLinear().domain(domain);
+
+    function makeXGrid() { return d3.axisBottom(xScale).ticks(10); }
+    function makeYGrid() { return d3.axisLeft(yScale).ticks(10); }
+    const xAxis = d3.axisBottom(xScale).ticks(10);
+    const yAxis = d3.axisLeft(yScale).ticks(10);
+
+    const pointRadius = 6;
+    function updateSVGDimensions() {
+      width = window.innerWidth;
+      height = window.innerHeight - 300 - 150; // approximate adjustment
+      svg.attr("width", width).attr("height", height);
+      xScale.range([margin.left, width - margin.right]);
+      yScale.range([height - margin.bottom, margin.top]);
+
+      // Remove old grid, axes, labels
+      svg.selectAll(".grid, .axis, line.axis-zero, .label").remove();
+
+      // Add grids
+      svg.append("g")
+         .attr("class", "grid")
+         .attr("transform", `translate(0,${height - margin.bottom})`)
+         .call(makeXGrid().tickSize(-height + margin.top + margin.bottom).tickFormat(""));
+      svg.append("g")
+         .attr("class", "grid")
+         .attr("transform", `translate(${margin.left},0)`)
+         .call(makeYGrid().tickSize(-width + margin.left + margin.right).tickFormat(""));
+
+      // Add axes
+      svg.append("g")
+         .attr("class", "axis")
+         .attr("transform", `translate(0,${yScale(0)})`)
+         .call(xAxis.scale(xScale));
+      svg.append("g")
+         .attr("class", "axis")
+         .attr("transform", `translate(${xScale(0)},0)`)
+         .call(yAxis.scale(yScale));
+
+      // Add axis-zero lines
+      svg.append("line")
+         .attr("class", "axis-zero")
+         .attr("x1", xScale(domain[0]))
+         .attr("x2", xScale(domain[1]))
+         .attr("y1", yScale(0))
+         .attr("y2", yScale(0));
+      svg.append("line")
+         .attr("class", "axis-zero")
+         .attr("x1", xScale(0))
+         .attr("x2", xScale(0))
+         .attr("y1", yScale(domain[0]))
+         .attr("y2", yScale(domain[1]));
+
+      // Add labels
+      svg.append("text")
+         .attr("class", "label")
+         .attr("x", width - margin.right - 10)
+         .attr("y", yScale(0) - 10)
+         .attr("text-anchor", "end")
+         .text("x");
+      svg.append("text")
+         .attr("class", "label")
+         .attr("x", xScale(0) + 10)
+         .attr("y", margin.top + 36)
+         .attr("text-anchor", "start")
+         .text("f(x)");
+    }
+
+    // Initialize SVG and update on resize
+    updateSVGDimensions();
+    window.addEventListener("resize", () => {
+      updateSVGDimensions();
+      updateFromPoints();
+    });
+
+    /***** D3 Plot & Curve Calculation *****/
+    let points = [
+      { x: 1, y: 1 },
+      { x: Math.cos(Math.PI / 5), y: -1 },
+      { x: Math.cos(2 * Math.PI / 5), y: 1 }
+    ];
+
+    const curvePath = svg.append("path")
+                         .attr("fill", "none")
+                         .attr("stroke", "blue")
+                         .attr("stroke-width", 4);
+
+    let dragPointsData = [];
+    points.forEach((p, i) => {
+      dragPointsData.push({ pair: i, sign: 1 });
+      dragPointsData.push({ pair: i, sign: -1 });
+    });
+
+    const dragGroup = svg.append("g").attr("class", "dragPoints");
+    const circles = dragGroup.selectAll("circle")
+      .data(dragPointsData)
+      .enter()
+      .append("circle")
+      .attr("class", "draggable")
+      .attr("r", pointRadius)
+      .attr("cx", d => xScale(d.sign === 1 ? points[d.pair].x : -points[d.pair].x))
+      .attr("cy", d => yScale(d.sign === 1 ? points[d.pair].y : -points[d.pair].y))
+      .call(d3.drag().on("drag", dragged));
+
+
+    function solveCoeffs(pts) {
+      const n = 3;
+      let M = [], Y = [];
+      for (let i = 0; i < n; i++) {
+        const x = pts[i].x;
+        M.push([x, Math.pow(x, 3), Math.pow(x, 5)]);
+        Y.push(pts[i].y);
+      }
+      for (let i = 0; i < n; i++) M[i].push(Y[i]);
+      for (let i = 0; i < n; i++) {
+        let maxRow = i;
+        for (let j = i + 1; j < n; j++) {
+          if (Math.abs(M[j][i]) > Math.abs(M[maxRow][i])) maxRow = j;
+        }
+        [M[i], M[maxRow]] = [M[maxRow], M[i]];
+        let pivot = M[i][i];
+        if (Math.abs(pivot) < 1e-10) continue;
+        for (let j = i; j < n + 1; j++) M[i][j] /= pivot;
+        for (let j = i + 1; j < n; j++) {
+          let factor = M[j][i];
+          for (let k = i; k < n + 1; k++) M[j][k] -= factor * M[i][k];
+        }
+      }
+      let coeff = new Array(n);
+      for (let i = n - 1; i >= 0; i--) {
+        coeff[i] = M[i][n];
+        for (let j = i + 1; j < n; j++) coeff[i] -= M[i][j] * coeff[j];
+      }
+      return coeff;
+    }
+
+    function poly(coeff, x) {
+      return coeff[0] * x + coeff[1] * Math.pow(x, 3) + coeff[2] * Math.pow(x, 5);
+    }
+
+    function Rx(x) {
+      return math.matrix([
+        [math.cos(x), math.multiply(math.sin(x), math.i)],
+        [math.multiply(math.sin(x), math.i), math.cos(x)]
+      ]);
+    }
+
+    function Rz(x) {
+      let elem = math.exp(math.multiply(math.i, x));
+      return math.matrix([
+        [elem, 0],
+        [0, 1]
+      ]);
+    }
+
+    let angles = [0, 0, 0, 0, 0];
+    let polyCoeff = [0, 0, 0];
+    function qsvt(angles, x) {
+      let mat = math.multiply(
+        Rz(angles[4]), Rx(x),
+        Rz(angles[3]), Rx(-x),
+        Rz(angles[2]), Rx(x),
+        Rz(angles[1]), Rx(-x),
+        Rz(angles[0]), Rx(x)
+      );
+      if (math.abs(x) < 0.001)
+        console.log(`angles[4]: ${angles[4]}; return: ${math.re(mat.get([0, 0]))}`);
+      return math.re(mat.get([0, 0]));
+    }
+
+    function updateCurve(curveData) {
+      let segments = [];
+      if (curveData.length) {
+        let currentSegment = { inside: (curveData[0].y >= -1 && curveData[0].y <= 1), data: [curveData[0]] };
+        for (let i = 1; i < curveData.length; i++) {
+          const pointInside = (curveData[i].y >= -1 && curveData[i].y <= 1);
+          if (pointInside === currentSegment.inside)
+            currentSegment.data.push(curveData[i]);
+          else {
+            currentSegment.data.push(curveData[i]);
+            segments.push(currentSegment);
+            currentSegment = { inside: pointInside, data: [curveData[i]] };
+          }
+        }
+        segments.push(currentSegment);
+      }
+
+      svg.selectAll(".curveSegment").remove();
+      const line = d3.line()
+                     .x(d => xScale(d.x))
+                     .y(d => yScale(d.y));
+      segments.forEach(segment => {
+        svg.append("path")
+           .attr("class", "curveSegment")
+           .attr("fill", "none")
+           .attr("stroke", segment.inside ? "blue" : "red")
+           .attr("stroke-width", 4)
+           .attr("d", line(segment.data));
+      });
+
+      circles
+        .attr("cx", d => xScale(d.sign === 1 ? points[d.pair].x : -points[d.pair].x))
+        .attr("cy", d => yScale(d.sign === 1 ? points[d.pair].y : -points[d.pair].y));
+
+      qsvtConditionSatisfied = curveData.every(d => Math.abs(d.y) <= 1.01);
+      errorMsg.style.display = qsvtConditionSatisfied ? "none" : "block";
+    }
+
+    function updateFromPoints() {
+      polyCoeff = solveCoeffs(points);
+      const curveData = d3.range(domain[0], domain[1] + 0.001, 0.01)
+                          .map(x => ({ x: x, y: poly(polyCoeff, x) }));
+      updateCurve(curveData);
+    }
+
+    function updateFromAngles() {
+      const interpPoints = [
+        { x: 1, y: qsvt(angles, 0) },
+        { x: Math.cos(Math.PI / 5), y: qsvt(angles, Math.PI / 5) },
+        { x: Math.cos(2 * Math.PI / 5), y: qsvt(angles, 2 * Math.PI / 5) }
+      ];
+      let coeff = solveCoeffs(interpPoints);
+      const curveData = d3.range(domain[0], domain[1] + 0.001, 0.01)
+                          .map(x => ({ x: x, y: poly(coeff, x) }));
+      dragPointsData.forEach(d => {
+        const xVal = d.sign === 1 ? points[d.pair].x : -points[d.pair].x;
+        const yVal = qsvt(angles, Math.acos(xVal));
+        if (d.sign === 1) points[d.pair].y = yVal;
+        else points[d.pair].y = -yVal;
+      });
+      updateCurve(curveData);
+    }
+
+    let qsvtConditionSatisfied = false;
+    let errorMsg = document.getElementById("error-message");
+
+    function getGradient(inputAngle) {
+      const n = angles.length + 1;
+      let v_dv = [];
+      for (let i = 0; i < 2; i++) {
+        const row = [];
+        for (let j = 0; j < n; j++) row.push(math.complex(0, 0));
+        v_dv.push(row);
+      }
+      for (let j = 0; j < n; j++) v_dv[0][j] = math.complex(1, 0);
+      v_dv = math.matrix(v_dv);
+
+      const U = math.matrix([
+        [math.cos(inputAngle), math.multiply(math.sin(inputAngle), math.i)],
+        [math.multiply(math.sin(inputAngle), math.i), math.cos(inputAngle)]
+      ]);
+
+      for (let i = 0; i < angles.length; i++) {
+        v_dv = math.multiply(i % 2 === 0 ? U : math.conj(U), v_dv);
+        const phi = angles[i];
+        const factor0 = math.exp(math.multiply(math.complex(0, 1), phi));
+        for (let j = 0; j < n; j++) {
+          const cur0 = v_dv.get([0, j]);
+          v_dv.set([0, j], math.multiply(cur0, factor0));
+        }
+        v_dv.set([0, i + 1], math.multiply(v_dv.get([0, i + 1]), math.complex(0, 1)));
+        v_dv.set([1, i + 1], math.multiply(v_dv.get([1, i + 1]), math.complex(0, -1)));
+      }
+      const firstValue = math.re(v_dv.get([0, 0]));
+      const restValues = [];
+      for (let j = 1; j < n; j++) restValues.push(math.re(v_dv.get([0, j])));
+      return [firstValue, restValues];
+    }
+
+    const lr = 0.1;
+    function updatePhaseAngles() {
+      for (let it = 0; it < 5; it++) {
+        let grad = [0, 0, 0, 0, 0];
+        for (let i = 0; i < 6; i++) {
+          const inputAngle = i * Math.PI / 11,
+                targetOutput = poly(polyCoeff, Math.cos(inputAngle));
+          const [v, dv] = getGradient(inputAngle);
+          grad = grad.map((val, idx) => val + (targetOutput - v) * dv[idx] * lr);
+        }
+        angles = angles.map((val, idx) => val + grad[idx]);
+      }
+      document.querySelectorAll('.knob-wrapper').forEach((knobWrapper, index) => {
+        let rotatingGroup = knobWrapper.querySelector('.rotating-group');
+        let angleLabel = knobWrapper.querySelector('.angle-label');
+        let currentRotation = angles[index] * (180 / Math.PI);
+        if (currentRotation > 180) currentRotation -= 360;
+        rotatingGroup.setAttribute('transform', `rotate(${currentRotation},50,50)`);
+        angleLabel.textContent = `${(currentRotation / 180).toFixed(3)}π`;
+      });
+    }
+
+    function dragged(event, d) {
+      let newX = xScale.invert(event.x);
+      let newY = yScale.invert(event.y);
+      newX = Math.max(clampDomain[0], Math.min(clampDomain[1], newX));
+      newY = Math.max(clampDomain[0], Math.min(clampDomain[1], newY));
+      if (d.sign === 1) {
+        if (newX < 0) { points[d.pair].x = -newX; points[d.pair].y = -newY; }
+        else { points[d.pair].x = newX; points[d.pair].y = newY; }
+      } else {
+        if (newX > 0) { points[d.pair].x = newX; points[d.pair].y = newY; }
+        else { points[d.pair].x = -newX; points[d.pair].y = -newY; }
+      }
+      updateFromPoints();
+      if (qsvtConditionSatisfied) updatePhaseAngles();
+    }
+
+    updateFromPoints();
+
+    /***** Knob Generation & Interaction *****/
+    const knobContainer = document.getElementById("knob-container");
+    // Create 5 knobs dynamically
+    for (let i = 0; i < 5; i++) {
+      knobContainer.innerHTML += `
+        <div class="knob-wrapper">
+          <svg class="knob" viewBox="0 0 100 100">
+            <defs>
+              <radialGradient id="grad${i}" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" style="stop-color: #aaa;" />
+                <stop offset="100%" style="stop-color: #666;" />
+              </radialGradient>
+            </defs>
+            <circle cx="50" cy="50" r="40" fill="url(#grad${i})" stroke="black" stroke-width="3" />
+            <foreignObject x="0" y="0" width="100" height="100">
+              <div xmlns="http://www.w3.org/1999/xhtml"
+              style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; font-size: 24px; color: white; transform: translateY(-10%);">
+              \\( \\phi_{${i+1}} \\)
+              </div>
+            </foreignObject>
+            <g class="rotating-group">
+              <circle class="indicator" cx="50" cy="20" r="5" fill="white" />
+            </g>
+          </svg>
+          <div class="angle-label">\\( \\pi \\)</div>
+        </div>
+      `;
+    }
+    MathJax.typeset();
+
+    // Attach knob event listeners
+    document.querySelectorAll('.knob-wrapper').forEach((knobWrapper, index) => {
+      let knob = knobWrapper.querySelector('.knob');
+      let rotatingGroup = knob.querySelector('.rotating-group');
+      let angleLabel = knobWrapper.querySelector('.angle-label');
+      let isDragging = false;
+      // Initial rotation: set to 180° (except for knob 5) so the indicator starts at the bottom.
+      let currentRotation = index === 4 ? 0 : 180;
+      rotatingGroup.setAttribute('transform', `rotate(${currentRotation},50,50)`);
+      angleLabel.textContent = `\\(${(currentRotation / 180).toFixed(3)}\\pi\\)`;
+      angles[index] = currentRotation * (Math.PI / 180);
+      let lastAngle = 0;
+      function getAngle(event) {
+        let rect = knob.getBoundingClientRect();
+        let cx = rect.left + rect.width / 2;
+        let cy = rect.top + rect.height / 2;
+        let x = (event.clientX || event.touches[0].clientX) - cx;
+        let y = (event.clientY || event.touches[0].clientY) - cy;
+        return Math.atan2(y, x) * (180 / Math.PI);
+      }
+      function startDrag(event) {
+        isDragging = true;
+        lastAngle = getAngle(event);
+        event.preventDefault();
+      }
+      function drag(event) {
+        if (!isDragging) return;
+        let newAngle = getAngle(event);
+        let rotationChange = newAngle - lastAngle;
+        lastAngle = newAngle;
+        currentRotation += rotationChange;
+        if (currentRotation > 180) currentRotation -= 360;
+        if (currentRotation < -180) currentRotation += 360;
+        rotatingGroup.setAttribute('transform', `rotate(${currentRotation},50,50)`);
+        angleLabel.textContent = `\\(${(currentRotation / 180).toFixed(3)}\\pi\\)`;
+        MathJax.typeset();
+        angles[index] = currentRotation * (Math.PI / 180);
+        updateFromAngles();
+      }
+      function stopDrag() { isDragging = false; }
+      knob.addEventListener('mousedown', startDrag);
+      knob.addEventListener('touchstart', startDrag);
+      document.addEventListener('mousemove', drag);
+      document.addEventListener('touchmove', drag);
+      document.addEventListener('mouseup', stopDrag);
+      document.addEventListener('touchend', stopDrag);
+    });
+  </script>
+</body>
+</html>
