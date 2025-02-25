@@ -54,7 +54,7 @@
       scale: 1.2;
       pointer-events: none;
       margin-top: 10px;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       overflow: hidden;
       user-select: none;
     }
@@ -139,7 +139,7 @@
     const xAxis = d3.axisBottom(xScale).ticks(10);
     const yAxis = d3.axisLeft(yScale).ticks(10);
 
-    const pointRadius = 6;
+    const pointRadius = 10;
     function updateSVGDimensions() {
       width = window.innerWidth;
       height = window.innerHeight - 300 - 150; // approximate adjustment
@@ -302,36 +302,36 @@
     function updateCurve(curveData) {
       let segments = [];
       if (curveData.length) {
-        let currentSegment = { inside: (curveData[0].y >= -1 && curveData[0].y <= 1), data: [curveData[0]] };
-        for (let i = 1; i < curveData.length; i++) {
-          const pointInside = (curveData[i].y >= -1 && curveData[i].y <= 1);
-          if (pointInside === currentSegment.inside)
-            currentSegment.data.push(curveData[i]);
-          else {
-            currentSegment.data.push(curveData[i]);
-            segments.push(currentSegment);
-            currentSegment = { inside: pointInside, data: [curveData[i]] };
-          }
-        }
+      let currentSegment = { inside: (curveData[0].y >= -1 && curveData[0].y <= 1), data: [curveData[0]] };
+      for (let i = 1; i < curveData.length; i++) {
+        const pointInside = (curveData[i].y >= -1 && curveData[i].y <= 1);
+        if (pointInside === currentSegment.inside)
+        currentSegment.data.push(curveData[i]);
+        else {
+        currentSegment.data.push(curveData[i]);
         segments.push(currentSegment);
+        currentSegment = { inside: pointInside, data: [curveData[i]] };
+        }
+      }
+      segments.push(currentSegment);
       }
 
       svg.selectAll(".curveSegment").remove();
       const line = d3.line()
-                     .x(d => xScale(d.x))
-                     .y(d => yScale(d.y));
+             .x(d => xScale(d.x))
+             .y(d => yScale(d.y));
       segments.forEach(segment => {
-        svg.append("path")
-           .attr("class", "curveSegment")
-           .attr("fill", "none")
-           .attr("stroke", segment.inside ? "blue" : "red")
-           .attr("stroke-width", 4)
-           .attr("d", line(segment.data));
+      svg.insert("path", ".dragPoints")
+         .attr("class", "curveSegment")
+         .attr("fill", "none")
+         .attr("stroke", segment.inside ? "blue" : "red")
+         .attr("stroke-width", 4)
+         .attr("d", line(segment.data));
       });
 
       circles
-        .attr("cx", d => xScale(d.sign === 1 ? points[d.pair].x : -points[d.pair].x))
-        .attr("cy", d => yScale(d.sign === 1 ? points[d.pair].y : -points[d.pair].y));
+      .attr("cx", d => xScale(d.sign === 1 ? points[d.pair].x : -points[d.pair].x))
+      .attr("cy", d => yScale(d.sign === 1 ? points[d.pair].y : -points[d.pair].y));
 
       qsvtConditionSatisfied = curveData.every(d => Math.abs(d.y) <= 1.01);
       errorMsg.style.display = qsvtConditionSatisfied ? "none" : "block";
@@ -339,7 +339,7 @@
 
     function updateFromPoints() {
       polyCoeff = solveCoeffs(points);
-      const curveData = d3.range(domain[0], domain[1] + 0.001, 0.01)
+      const curveData = d3.range(domain[0], domain[1] + 0.001, 0.025)
                           .map(x => ({ x: x, y: poly(polyCoeff, x) }));
       updateCurve(curveData);
     }
