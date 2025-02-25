@@ -3,13 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <title>QSVT 101</title>
-  <!-- D3.js -->
   <script src="./d3.v7.min.js"></script>
-  <!-- MathJax for LaTeX rendering -->
   <script src="./tex-mml-chtml.js"></script>
-  <script src="./Math.min.js"></script>
+  <script src="./math.min.js"></script>
   <style>
-    /* Global style */
     html, body {
       margin: 0;
       padding: 0;
@@ -204,10 +201,10 @@
 
     // Initialize SVG and update on resize
     updateSVGDimensions();
-    window.addEventListener("resize", () => {
-      updateSVGDimensions();
-      updateFromPoints();
-    });
+    // window.addEventListener("resize", () => {
+    //   updateSVGDimensions();
+    //   updateFromPoints();
+    // });
 
     /***** D3 Plot & Curve Calculation *****/
     let points = [
@@ -299,8 +296,6 @@
         Rz(angles[1]), Rx(-x),
         Rz(angles[0]), Rx(x)
       );
-      if (math.abs(x) < 0.001)
-        console.log(`angles[4]: ${angles[4]}; return: ${math.re(mat.get([0, 0]))}`);
       return math.re(mat.get([0, 0]));
     }
 
