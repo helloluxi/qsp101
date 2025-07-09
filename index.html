@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <title>QSVT 101</title>
   <script src="./d3.v7.min.js"></script>
-  <script src="./tex-mml-chtml.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" integrity="sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV" crossorigin="anonymous">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" integrity="sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" integrity="sha384-+VBxd3r6XgURycqtZ117nYw44OOcIax56Z4dCRWbxyPt0Koah1uHoK0o4+/RRE05" crossorigin="anonymous"></script>
   <script src="./math.min.js"></script>
   <style>
     html, body {
@@ -26,7 +28,15 @@
       margin: 20px 0 10px;
       font-size: 36px;
     }
-    svg { display: block; }
+    .d3-plot { 
+      display: block; 
+      width: 100%;
+      height: auto;
+      aspect-ratio: 3 / 1;
+      max-height: 400px;
+      min-height: 200px;
+      margin: 20px auto;
+    }
     .axis path, .axis line { stroke: #000; shape-rendering: crispEdges; }
     .axis .tick line { stroke: #000; stroke-width: 2; }
     .axis .tick text { font-size: 24px; user-select: none; }
@@ -69,11 +79,12 @@
       gap: 50px;
       justify-content: center;
       align-items: center;
+      margin: 20px auto;
     }
     .knob-wrapper {
       position: relative;
       width: 100px;
-      height: 150px;
+      height: 120px;
     }
     .knob {
       width: 100px;
@@ -83,12 +94,14 @@
     }
     .angle-label {
       position: absolute;
-      top: 100px;
+      top: 105px;
       left: 50%;
       transform: translateX(-50%);
       color: #000;
-      font-size: 18px;
+      font-size: 16px;
       font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 2px 4px;
     }
     footer {
       text-align: center;
@@ -104,16 +117,21 @@
       color: #000;
       text-decoration: none;
     }
+    /* Ensure SVG images load properly */
+    img[src$=".svg"] {
+      max-width: 100%;
+      height: auto;
+    }
   </style>
 </head>
 <body>
   <h1>QSVT 101</h1>
   <!-- D3 Plot -->
-  <svg></svg>
+  <svg class="d3-plot"></svg>
 
-  <!-- Circuit iframe -->
-  <div class="circuit-iframe">
-    <iframe id="circuitFrame" src="./circuit.html"></iframe>
+  <!-- QSP Circuit Diagram -->
+  <div style="text-align: center; margin: 0;">
+    <img src="./qsp101.svg" alt="QSP Circuit Diagram" style="max-width: 80%; height: auto; display: block; margin: 0 auto;">
   </div>
 
   <!-- Knobs container (the five knobs will be generated dynamically) -->
@@ -145,9 +163,27 @@
 
     const pointRadius = 10;
     function updateSVGDimensions() {
-      width = window.innerWidth;
-      height = window.innerHeight - 300 - 150; // approximate adjustment
-      svg.attr("width", width).attr("height", height);
+      const svgElement = svg.node();
+      const rect = svgElement.getBoundingClientRect();
+      width = rect.width || 1200; // fallback width (larger)
+      height = rect.height || 400; // fallback height (1200/3 for 3:1 ratio)
+      
+      // Ensure minimum dimensions and maintain 3:1 ratio
+      if (width < 600) width = 1200;
+      if (height < 200) height = 400;
+      
+      // Force 3:1 ratio
+      if (width / height > 3.2) {
+        height = width / 3;
+      } else if (width / height < 2.8) {
+        width = height * 3;
+      }
+      
+      svg.attr("width", width)
+         .attr("height", height)
+         .attr("viewBox", `0 0 ${width} ${height}`)
+         .attr("preserveAspectRatio", "xMidYMid meet");
+      
       xScale.range([margin.left, width - margin.right]);
       yScale.range([height - margin.bottom, margin.top]);
 
@@ -204,11 +240,18 @@
     }
 
     // Initialize SVG and update on resize
-    updateSVGDimensions();
-    // window.addEventListener("resize", () => {
-    //   updateSVGDimensions();
-    //   updateFromPoints();
-    // });
+    // Wait for DOM and CSS to be ready
+    setTimeout(() => {
+      updateSVGDimensions();
+      updateFromPoints();
+    }, 100);
+    
+    window.addEventListener("resize", () => {
+      setTimeout(() => {
+        updateSVGDimensions();
+        updateFromPoints();
+      }, 50);
+    });
 
     /***** D3 Plot & Curve Calculation *****/
     let points = [
@@ -420,8 +463,7 @@
         let currentRotation = angles[index] * (180 / Math.PI);
         if (currentRotation > 180) currentRotation -= 360;
         rotatingGroup.setAttribute('transform', `rotate(${currentRotation},50,50)`);
-        angleLabel.textContent = `\\(${(currentRotation / 180).toFixed(3)}\\pi\\)`;
-        MathJax.typeset([angleLabel]);
+        angleLabel.innerHTML = katex.renderToString(`${(currentRotation / 180).toFixed(3)}\\pi`, {displayMode: false});
       });
     }
 
@@ -441,7 +483,19 @@
       if (qsvtConditionSatisfied) updatePhaseAngles();
     }
 
-    updateFromPoints();
+    // Initialize SVG and update on resize
+    // Wait for DOM and CSS to be ready
+    setTimeout(() => {
+      updateSVGDimensions();
+      updateFromPoints();
+    }, 100);
+    
+    window.addEventListener("resize", () => {
+      setTimeout(() => {
+        updateSVGDimensions();
+        updateFromPoints();
+      }, 50);
+    });
 
     /***** Knob Generation & Interaction *****/
     const knobContainer = document.getElementById("knob-container");
@@ -459,15 +513,15 @@
             <circle cx="50" cy="50" r="40" fill="url(#grad${i})" stroke="black" stroke-width="3" />
             <foreignObject x="0" y="0" width="100" height="100">
               <div xmlns="http://www.w3.org/1999/xhtml"
-              style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; font-size: 24px; color: white; transform: translateY(-10%);">
-              \\( \\phi_{${i+1}} \\)
+              style="display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; font-size: 24px; color: white; transform: translateY(-10%);" 
+              class="knob-label">
               </div>
             </foreignObject>
             <g class="rotating-group">
               <circle class="indicator" cx="50" cy="20" r="5" fill="white" />
             </g>
           </svg>
-          <div class="angle-label">\\( \\pi \\)</div>
+          <div class="angle-label"></div>
         </div>
       `;
     }
@@ -477,11 +531,16 @@
       let knob = knobWrapper.querySelector('.knob');
       let rotatingGroup = knob.querySelector('.rotating-group');
       let angleLabel = knobWrapper.querySelector('.angle-label');
+      let knobLabel = knob.querySelector('.knob-label');
+      
+      // Set the knob label using KaTeX
+      knobLabel.innerHTML = katex.renderToString(`\\phi_{${index+1}}`, {displayMode: false});
+      
       let isDragging = false;
       // Initial rotation: set to 180° (except for knob 5) so the indicator starts at the bottom.
       let currentRotation = index === 4 ? 0 : 180;
       rotatingGroup.setAttribute('transform', `rotate(${currentRotation},50,50)`);
-      angleLabel.textContent = `\\(${(currentRotation / 180).toFixed(3)}\\pi\\)`;
+      angleLabel.innerHTML = katex.renderToString(`${(currentRotation / 180).toFixed(3)}\\pi`, {displayMode: false});
       angles[index] = currentRotation * (Math.PI / 180);
       let lastAngle = 0;
       function getAngle(event) {
@@ -506,8 +565,7 @@
         if (currentRotation > 180) currentRotation -= 360;
         if (currentRotation < -180) currentRotation += 360;
         rotatingGroup.setAttribute('transform', `rotate(${currentRotation},50,50)`);
-        angleLabel.textContent = `\\(${(currentRotation / 180).toFixed(3)}\\pi\\)`;
-        MathJax.typeset([angleLabel]);
+        angleLabel.innerHTML = katex.renderToString(`${(currentRotation / 180).toFixed(3)}\\pi`, {displayMode: false});
         angles[index] = currentRotation * (Math.PI / 180);
         updateFromAngles();
       }
@@ -520,7 +578,13 @@
       document.addEventListener('touchend', stopDrag);
     });
     
-    MathJax.typeset();
+    // Initialize KaTeX rendering
+    renderMathInElement(document.body, {
+      delimiters: [
+        {left: "$$", right: "$$", display: true},
+        {left: "\\(", right: "\\)", display: false}
+      ]
+    });
   </script>
 </body>
 </html>
